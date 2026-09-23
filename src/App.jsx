@@ -230,6 +230,7 @@ function Header({ onNav, active }) {
       }}
     >
       <div
+        className="eg-header-inner"
         style={{
           maxWidth: 1280,
           margin: "0 auto",
@@ -393,6 +394,7 @@ function Hero({ onExplore }) {
   return (
     <section
       id="home"
+      className="eg-hero"
       style={{
         minHeight: "92vh",
         display: "flex",
@@ -541,6 +543,7 @@ function ProductCard({ product, index, onOpen }) {
         aria-label={`View ${product.name}`}
       >
         <div
+          className="eg-product-image"
           style={{
             width: "100%",
             aspectRatio: product.tall ? "3 / 4.2" : "3 / 3.6",
@@ -638,6 +641,7 @@ function ProductGrid({ onOpen }) {
   return (
     <section
       id="collection"
+      className="eg-collection"
       style={{
         maxWidth: 1280,
         margin: "0 auto",
@@ -1363,6 +1367,7 @@ function Footer({ onNav }) {
       }}
     >
       <div
+        className="eg-header-inner"
         style={{
           maxWidth: 1280,
           margin: "0 auto",
@@ -1551,21 +1556,243 @@ export default function App() {
               display: flex !important;
             }
 
+            /* Keep the existing desktop design, but give mobile its own
+               comfortable gutters and prevent any horizontal overflow. */
+            html,
+            body,
+            #root {
+              width: 100%;
+              max-width: 100%;
+              overflow-x: hidden;
+            }
+
+            .eg-header-inner {
+              width: 100%;
+              padding-left: 18px !important;
+              padding-right: 18px !important;
+            }
+
+            .eg-hero {
+              width: 100%;
+              min-height: auto !important;
+              padding: 145px 20px 72px !important;
+            }
+
+            .eg-hero > div {
+              width: 100%;
+              max-width: 100% !important;
+            }
+
+            .eg-hero h1 {
+              font-size: clamp(36px, 10vw, 52px) !important;
+              line-height: 1.08 !important;
+            }
+
+            .eg-hero p {
+              font-size: 15px !important;
+              line-height: 1.7 !important;
+              max-width: 100% !important;
+            }
+
+            .eg-collection {
+              width: 100%;
+              padding: 86px 20px 48px !important;
+            }
+
             .eg-grid {
               grid-template-columns: 1fr !important;
+              gap: 44px !important;
+              width: 100%;
+            }
+
+            .eg-product-image {
+              width: 100% !important;
+              max-width: 100% !important;
+              aspect-ratio: 3 / 4.05 !important;
+            }
+
+            .eg-product-img {
+              width: 100% !important;
+              height: 100% !important;
+              max-width: none !important;
+              object-fit: cover !important;
+            }
+
+            .eg-collection .eg-grid button {
+              width: 100% !important;
+            }
+
+            .eg-collection .eg-grid button > div:last-child {
+              width: 100%;
             }
 
             .eg-two-col {
               grid-template-columns: 1fr !important;
+              gap: 52px !important;
+              padding: 88px 20px !important;
+            }
+
+            .eg-two-col img {
+              width: 100% !important;
+              height: 100% !important;
+              object-fit: cover !important;
             }
 
             .eg-contact-grid {
-              grid-template-columns: repeat(2, 1fr) !important;
+              grid-template-columns: 1fr 1fr !important;
+              gap: 28px 18px !important;
             }
 
+            /* Product detail viewer: stack image and text cleanly on phones. */
             .eg-detail-body {
               flex-direction: column !important;
               overflow-y: auto !important;
+              overflow-x: hidden !important;
+              padding: 0 20px 28px !important;
+              gap: 28px !important;
+            }
+
+            .eg-detail-body > div:first-child {
+              flex: none !important;
+              width: 100% !important;
+              height: min(58vh, 520px) !important;
+              min-height: 300px !important;
+              max-height: 520px !important;
+            }
+
+            .eg-detail-info {
+              flex: none !important;
+              width: 100% !important;
+              max-width: none !important;
+              min-width: 0 !important;
+              padding: 0 2px 10px !important;
+              justify-content: flex-start !important;
+            }
+
+            .eg-detail-info h2 {
+              font-size: 30px !important;
+              line-height: 1.15 !important;
+            }
+
+            .eg-detail-info p {
+              font-size: 14px !important;
+              line-height: 1.7 !important;
+            }
+
+            .eg-detail-body > div:first-child img {
+              max-width: 100% !important;
+              max-height: 100% !important;
+              object-fit: contain !important;
+            }
+
+            .eg-detail-body + div {
+              padding-left: 20px !important;
+              padding-right: 20px !important;
+            }
+
+            /* Product filters can scroll horizontally instead of wrapping
+               into an awkward narrow layout. */
+            .eg-collection [role="tablist"] {
+              flex-wrap: nowrap !important;
+              overflow-x: auto !important;
+              overflow-y: hidden !important;
+              gap: 24px !important;
+              padding-bottom: 8px;
+              margin-right: -20px;
+              padding-right: 20px;
+              scrollbar-width: none;
+            }
+
+            .eg-collection [role="tablist"]::-webkit-scrollbar {
+              display: none;
+            }
+
+            .eg-collection [role="tablist"] button {
+              flex: 0 0 auto;
+              white-space: nowrap;
+            }
+
+            footer {
+              padding-left: 20px !important;
+              padding-right: 20px !important;
+            }
+
+            .eg-footer-inner {
+              flex-direction: column !important;
+              align-items: flex-start !important;
+              gap: 36px !important;
+            }
+
+            .eg-footer-inner > div:last-child {
+              gap: 36px !important;
+              width: 100%;
+            }
+          }
+
+          @media (max-width: 520px) {
+            .eg-logo {
+              width: 142px !important;
+            }
+
+            .eg-hero {
+              padding-top: 132px !important;
+              padding-bottom: 64px !important;
+            }
+
+            .eg-hero h1 {
+              font-size: clamp(34px, 11vw, 46px) !important;
+            }
+
+            .eg-hero > div > div:first-child {
+              font-size: 11px !important;
+              letter-spacing: 0.11em !important;
+            }
+
+            .eg-hero button {
+              width: 100%;
+              padding-left: 20px !important;
+              padding-right: 20px !important;
+            }
+
+            .eg-collection {
+              padding-left: 16px !important;
+              padding-right: 16px !important;
+            }
+
+            .eg-product-image {
+              aspect-ratio: 3 / 4.15 !important;
+            }
+
+            .eg-contact-grid {
+              grid-template-columns: 1fr !important;
+            }
+
+            .eg-detail-body {
+              padding-left: 16px !important;
+              padding-right: 16px !important;
+            }
+
+            .eg-detail-body > div:first-child {
+              height: min(54vh, 430px) !important;
+              min-height: 260px !important;
+            }
+
+            .eg-detail-info h2 {
+              font-size: 27px !important;
+            }
+
+            .eg-detail-info button {
+              width: 100%;
+            }
+
+            .eg-detail-body + div {
+              padding-left: 16px !important;
+              padding-right: 16px !important;
+            }
+
+            footer {
+              padding-left: 16px !important;
+              padding-right: 16px !important;
             }
           }
 
