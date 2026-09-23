@@ -697,11 +697,24 @@ function ProductGrid({ onOpen }) {
 function ProductDetail({ product, onClose, onPrev, onNext }) {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+
   const zoomRef = useRef(1);
   const targetZoomRef = useRef(1);
   const animationRef = useRef(null);
   const zoomTarget = useRef(1);
   const zoomAnimation = useRef(null);
+
+  // Mobile touch state
+  const touchState = useRef({
+    mode: null,
+    startX: 0,
+    startY: 0,
+    originPan: { x: 0, y: 0 },
+    startDistance: 0,
+    startZoom: 1,
+    lastTap: 0,
+    didTouch: false,
+  });
 
   useEffect(() => {
     const onKey = (e) => {
@@ -721,84 +734,56 @@ function ProductDetail({ product, onClose, onPrev, onNext }) {
         cancelAnimationFrame(zoomAnimation.current);
         zoomAnimation.current = null;
       }
+
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+        animationRef.current = null;
+      }
     };
   }, [onClose, onPrev, onNext]);
 
   // Reset when changing product
   useEffect(() => {
-  zoomRef.current = 1;
-  targetZoomRef.current = 1;
+    zoomRef.current = 1;
+    targetZoomRef.current = 1;
+    zoomTarget.current = 1;
 
-  setZoom(1);
-  setPan({ x: 0, y: 0 });
-}, [product]);
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
 
-useEffect(() => {
-  return () => {
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current);
-    }
-  };
-}, []);
+    touchState.current = {
+      mode: null,
+      startX: 0,
+      startY: 0,
+      originPan: { x: 0, y: 0 },
+      startDistance: 0,
+      startZoom: 1,
+      lastTap: 0,
+      didTouch: false,
+    };
+  }, [product]);
 
-  // Smooth zoom animation
-  const animateZoom = () => {
-    setZoom((currentZoom) => {
-      const target = zoomTarget.current;
-      const difference = target - currentZoom;
-
-      if (Math.abs(difference) < 0.001) {
-        zoomAnimation.current = null;
-        return target;
+  useEffect(() => {
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
       }
+    };
+  }, []);
 
-      zoomAnimation.current = requestAnimationFrame(animateZoom);
+  // Shared smooth zoom animation
+  const startZoomAnimation = useCallback(() => {
+    if (animationRef.current) return;
 
-      // Smooth easing
-      return currentZoom + difference * 0.10;
-    });
-  };
-
-  // Mouse wheel zoom
-  const handleWheel = (e) => {
-  e.preventDefault();
-
-  const direction = e.deltaY > 0 ? -1 : 1;
-  const scrollSpeed = Math.abs(e.deltaY);
-
-  const zoomAmount =
-    Math.min(scrollSpeed * 0.0012, 0.12);
-
-  const newTargetZoom = Math.min(
-    5,
-    Math.max(
-      1,
-      targetZoomRef.current + direction * zoomAmount
-    )
-  );
-
-  targetZoomRef.current = newTargetZoom;
-
-  // If zooming OUT, smoothly bring product back toward center
-  if (direction === -1) {
-    setPan((currentPan) => ({
-      x: currentPan.x * 0.82,
-      y: currentPan.y * 0.82,
-    }));
-  }
-
-  if (!animationRef.current) {
     const animate = () => {
       const current = zoomRef.current;
       const target = targetZoomRef.current;
-
-      const next =
-        current + (target - current) * 0.18;
+      const next = current + (target - current) * 0.18;
 
       zoomRef.current = next;
+      zoomTarget.current = target;
       setZoom(next);
 
-      // Keep centering while zooming out
       if (target < current) {
         setPan((currentPan) => ({
           x: currentPan.x * 0.90,
@@ -807,13 +792,12 @@ useEffect(() => {
       }
 
       if (Math.abs(target - next) > 0.0005) {
-        animationRef.current =
-          requestAnimationFrame(animate);
+        animationRef.current = requestAnimationFrame(animate);
       } else {
         zoomRef.current = target;
+        zoomTarget.current = target;
         setZoom(target);
 
-        // Completely centered at 1x
         if (target <= 1.001) {
           setPan({ x: 0, y: 0 });
         }
@@ -822,12 +806,35 @@ useEffect(() => {
       }
     };
 
-    animationRef.current =
-      requestAnimationFrame(animate);
-  }
-};
+    animationRef.current = requestAnimationFrame(animate);
+  }, []);
 
-  // Drag image when zoomed
+  // Mouse wheel zoom — unchanged behavior for desktop
+  const handleWheel = (e) => {
+    e.preventDefault();
+
+    const direction = e.deltaY > 0 ? -1 : 1;
+    const scrollSpeed = Math.abs(e.deltaY);
+    const zoomAmount = Math.min(scrollSpeed * 0.0012, 0.12);
+
+    const newTargetZoom = Math.min(
+      5,
+      Math.max(1, targetZoomRef.current + direction * zoomAmount)
+    );
+
+    targetZoomRef.current = newTargetZoom;
+
+    if (direction === -1) {
+      setPan((currentPan) => ({
+        x: currentPan.x * 0.82,
+        y: currentPan.y * 0.82,
+      }));
+    }
+
+    startZoomAnimation();
+  };
+
+  // Desktop drag image when zoomed
   const handleDrag = (e) => {
     if (zoom <= 1) return;
 
@@ -835,7 +842,6 @@ useEffect(() => {
 
     const startX = e.clientX;
     const startY = e.clientY;
-
     const origin = { ...pan };
 
     const move = (ev) => {
@@ -854,12 +860,161 @@ useEffect(() => {
     window.addEventListener("mouseup", up);
   };
 
+  const getTouchDistance = (touches) => {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.hypot(dx, dy);
+  };
+
+  // Mobile: pinch-to-zoom + one-finger pan
+  const handleTouchStart = (e) => {
+    touchState.current.didTouch = true;
+
+    if (e.touches.length === 2) {
+      e.preventDefault();
+
+      touchState.current.mode = "pinch";
+      touchState.current.startDistance = getTouchDistance(e.touches);
+      touchState.current.startZoom = zoomRef.current;
+
+      // Stop any pending smooth zoom animation while the fingers take over.
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+        animationRef.current = null;
+      }
+
+      return;
+    }
+
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      const now = Date.now();
+      const previousTap = touchState.current.lastTap;
+
+      touchState.current.lastTap = now;
+
+      // Double tap: toggle between 1x and a comfortable 2x zoom.
+      if (now - previousTap < 300) {
+        e.preventDefault();
+
+        if (zoomRef.current > 1.01) {
+          zoomTarget.current = 1;
+          targetZoomRef.current = 1;
+        } else {
+          zoomTarget.current = 2;
+          targetZoomRef.current = 2;
+        }
+
+        startZoomAnimation();
+        touchState.current.mode = null;
+        return;
+      }
+
+      touchState.current.mode = "pan";
+      touchState.current.startX = touch.clientX;
+      touchState.current.startY = touch.clientY;
+      touchState.current.originPan = { ...pan };
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+
+      if (touchState.current.mode !== "pinch") {
+        touchState.current.mode = "pinch";
+        touchState.current.startDistance = getTouchDistance(e.touches);
+        touchState.current.startZoom = zoomRef.current;
+      }
+
+      const currentDistance = getTouchDistance(e.touches);
+      if (!touchState.current.startDistance) return;
+
+      const scaleChange =
+        currentDistance / touchState.current.startDistance;
+
+      const nextZoom = Math.min(
+        5,
+        Math.max(1, touchState.current.startZoom * scaleChange)
+      );
+
+      zoomRef.current = nextZoom;
+      targetZoomRef.current = nextZoom;
+      zoomTarget.current = nextZoom;
+      setZoom(nextZoom);
+
+      if (nextZoom <= 1.001) {
+        setPan({ x: 0, y: 0 });
+      }
+
+      return;
+    }
+
+    if (e.touches.length === 1 && touchState.current.mode === "pan") {
+      if (zoomRef.current <= 1.01) return;
+
+      e.preventDefault();
+
+      const touch = e.touches[0];
+      const dx = touch.clientX - touchState.current.startX;
+      const dy = touch.clientY - touchState.current.startY;
+
+      setPan({
+        x: touchState.current.originPan.x + dx,
+        y: touchState.current.originPan.y + dy,
+      });
+    }
+  };
+
+  const handleTouchEnd = (e) => {
+    // If a pinch ended and one finger remains, continue as a one-finger pan.
+    if (e.touches.length === 1 && touchState.current.mode === "pinch") {
+      const touch = e.touches[0];
+
+      touchState.current.mode = "pan";
+      touchState.current.startX = touch.clientX;
+      touchState.current.startY = touch.clientY;
+      touchState.current.originPan = { ...pan };
+      return;
+    }
+
+    if (e.touches.length === 0) {
+      touchState.current.mode = null;
+
+      // Re-center after pinching all the way back to 1x.
+      if (zoomRef.current <= 1.01) {
+        zoomRef.current = 1;
+        targetZoomRef.current = 1;
+        zoomTarget.current = 1;
+        setZoom(1);
+        setPan({ x: 0, y: 0 });
+      }
+    }
+  };
+
   if (!product) return null;
 
   const resetZoom = () => {
     zoomTarget.current = 1;
+    targetZoomRef.current = 1;
+    zoomRef.current = 1;
     setZoom(1);
     setPan({ x: 0, y: 0 });
+  };
+
+  const handleViewerClick = () => {
+    // Browsers can fire click after a touch gesture. Do not trigger
+    // the desktop click-to-zoom in that case.
+    if (touchState.current.didTouch) {
+      touchState.current.didTouch = false;
+      return;
+    }
+
+    if (zoom === 1) {
+      zoomTarget.current = 1.25;
+      targetZoomRef.current = 1.25;
+      startZoomAnimation();
+    }
   };
 
   return (
@@ -925,65 +1080,53 @@ useEffect(() => {
       >
         {/* IMAGE VIEWER */}
         <div
-  onMouseDown={handleDrag}
-  onWheel={handleWheel}
-  onClick={() => {
-    if (zoom === 1) {
-      zoomTarget.current = 1.25;
-
-      if (!zoomAnimation.current) {
-        zoomAnimation.current =
-          requestAnimationFrame(animateZoom);
-      }
-    }
-  }}
-  style={{
-    flex: "1.65",
-    minWidth: 0,
-
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-
-    overflow: "hidden",
-
-    cursor:
-      zoom > 1
-        ? pan.x || pan.y
-          ? "grabbing"
-          : "grab"
-        : "zoom-in",
-
-    background: `${product.tone}12`,
-    position: "relative",
-  }}
->
+          onMouseDown={handleDrag}
+          onWheel={handleWheel}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchEnd}
+          onClick={handleViewerClick}
+          style={{
+            flex: "1.65",
+            minWidth: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            overflow: "hidden",
+            cursor:
+              zoom > 1
+                ? pan.x || pan.y
+                  ? "grabbing"
+                  : "grab"
+                : "zoom-in",
+            background: `${product.tone}12`,
+            position: "relative",
+            touchAction: "none",
+            WebkitTapHighlightColor: "transparent",
+          }}
+        >
           <img
-  src={product.highResolutionImage || product.image}
-  alt={`${product.name} — high resolution view`}
-  style={{
-    width: "100%",
-    height: "100%",
-
-    objectFit: "contain",
-
-    transform: `
-      translate(${pan.x}px, ${pan.y}px)
-      scale(${zoom})
-    `,
-
-    transformOrigin: "center center",
-    transition: "none",
-
-    userSelect: "none",
-    WebkitUserSelect: "none",
-
-    display: "block",
-    willChange: "transform",
-    pointerEvents: "none",
-  }}
-  draggable={false}
-/>
+            src={product.highResolutionImage || product.image}
+            alt={`${product.name} — high resolution view`}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
+              transform: `
+                translate(${pan.x}px, ${pan.y}px)
+                scale(${zoom})
+              `,
+              transformOrigin: "center center",
+              transition: "none",
+              userSelect: "none",
+              WebkitUserSelect: "none",
+              display: "block",
+              willChange: "transform",
+              pointerEvents: "none",
+            }}
+            draggable={false}
+          />
 
           {zoom > 1 && (
             <button
@@ -1014,13 +1157,13 @@ useEffect(() => {
         <div
           className="eg-detail-info"
           style={{
-  flex: "0.72",
-  maxWidth: 400,
-  minWidth: 320,
-  display: "flex",
-  flexDirection: "column",
-  justifyContent: "center",
-}}
+            flex: "0.72",
+            maxWidth: 400,
+            minWidth: 320,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+          }}
         >
           <h2
             style={{
@@ -1108,7 +1251,6 @@ useEffect(() => {
     </div>
   );
 }
-
 
 
 /* ============================== ABOUT ============================== */
